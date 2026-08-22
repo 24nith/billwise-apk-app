@@ -1,0 +1,9 @@
+{
+  "appId": "com.billwise.app",
+  "appName": "Billwise",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

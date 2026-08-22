@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Billwise — Billing &amp; Invoices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --ink:#20252b; --paper:#f5f1e8; --paper2:#ebe4d6; --brass:#c3974b;
+    --teal:#176b68; --red:#b84d45; --line:#30343a;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(135deg,#f8f5ee 0%,#eee8dc 100%);color:var(--ink);font-family:'Inter',sans-serif;}
+
+  header{
+    display:flex;justify-content:flex-start;align-items:center;
+    padding:18px 40px;border-bottom:1px solid var(--line);position:sticky;top:0;
+    background:rgba(245,241,232,.94);z-index:10;box-shadow:0 2px 18px rgba(32,37,43,.08);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .mark{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--ink),var(--teal));box-shadow:inset 0 0 0 2px rgba(255,255,255,.2),0 4px 10px rgba(23,107,104,.22);}
+  .brand span{font-family:'Spectral',serif;font-weight:700;font-size:1.3rem;}
+  .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:6px;
+    padding:10px 16px;background:#fff;border-top:2px solid #111;z-index:100;}
+  .tab-btn{
+    border:1px solid rgba(32,37,43,.3);background:rgba(255,255,255,.42);padding:9px 18px;border-radius:8px;
+    cursor:pointer;font-size:0.85rem;font-family:'Inter',sans-serif;color:var(--ink);
+  }
+  .tab-btn.active{background:var(--teal);color:#fff;border-color:var(--teal);box-shadow:0 4px 10px rgba(23,107,104,.2);}
+
+  main{max-width:1100px;margin:0 auto;padding:36px 40px 120px;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  h2{font-family:'Spectral',serif;font-weight:700;font-size:1.5rem;margin:0 0 4px;}
+  .sub{opacity:0.6;font-size:0.88rem;margin-bottom:24px;}
+  .note{background:rgba(195,151,75,.14);border:1px solid rgba(195,151,75,.55);padding:10px 14px;border-radius:8px;font-size:0.8rem;margin-bottom:22px;color:#765626;}
+
+  /* Shared card / table styling */
+  .card{background:rgba(255,255,255,.86);border:1px solid rgba(48,52,58,.48);border-radius:10px;padding:22px;margin-bottom:22px;box-shadow:0 8px 24px rgba(32,37,43,.06);}
+  table{width:100%;border-collapse:collapse;font-size:0.88rem;}
+  th{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);opacity:0.6;font-weight:500;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;}
+  td{padding:9px 8px;border-bottom:1px solid #111;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  input, select{
+    background:#fff;border:1px solid rgba(48,52,58,.72);border-radius:7px;padding:8px 10px;
+    font-family:'Inter',sans-serif;font-size:0.87rem;width:100%;color:#000;
+  }
+  #custName,#customerSearch,#billCustomer,#setBizName,#setInvoiceTitle,
+  .item-row input:first-child{ text-align:center; }
+  label{display:block;color:#000;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;opacity:1;margin-bottom:5px;}
+
+  .btn{border:none;border-radius:8px;padding:9px 18px;font-size:0.85rem;cursor:pointer;font-weight:600;font-family:'Inter',sans-serif;}
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 4px 10px rgba(23,107,104,.18);}
+  .btn-primary:hover{background:var(--ink);}
+  .btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
+  .btn-danger:hover{background:var(--red);color:#fff;}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--ink);}
+
+  /* ---- Customers ---- */
+  .add-customer-row{display:grid;grid-template-columns:1.3fr 1fr 1.3fr auto;gap:12px;align-items:end;}
+
+  /* ---- New Bill ---- */
+  .bill-grid{display:grid;grid-template-columns:1fr 320px;gap:24px;}
+  .item-row{display:grid;grid-template-columns:2fr 0.7fr 0.9fr 0.9fr auto;gap:10px;align-items:center;margin-bottom:10px;}
+  .item-row .lineTotal{font-family:'IBM Plex Mono',monospace;text-align:right;padding-right:6px;}
+  .item-head{display:grid;grid-template-columns:2fr 0.7fr 0.9fr 0.9fr auto;gap:10px;margin-bottom:7px;}
+  .item-head span{font-size:.7rem;font-weight:700;color:#000;text-transform:uppercase;text-align:center;}
+  .item-head span:nth-child(4){text-align:right;}
+  .add-item-btn{margin-top:6px;}
+
+  .summary{position:sticky;top:90px;height:fit-content;}
+  .sum-row{display:flex;justify-content:space-between;font-size:0.87rem;padding:6px 0;border-bottom:1px dotted var(--line);}
+  .sum-row.total{font-weight:700;font-size:1.05rem;border-bottom:none;margin-top:8px;color:var(--ink);}
+  .sum-row .mono{font-family:'IBM Plex Mono',monospace;}
+  .tax-input{width:70px;display:inline-block;}
+
+  /* ---- History ---- */
+  .search-row{display:flex;gap:10px;margin-bottom:16px;align-items:center;}
+  .search-row input{max-width:280px;}
+  .status-pill{font-size:0.7rem;padding:3px 9px;border-radius:999px;background:rgba(47,111,107,0.15);color:var(--teal);font-weight:600;white-space:nowrap;}
+  .status-pill.unpaid{background:rgba(178,58,52,0.15);color:var(--red);}
+  .status-pill.partial{background:rgba(176,141,87,0.2);color:#8a6c3d;}
+  .home-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:22px;}
+  .home-stat strong{display:block;font-family:'IBM Plex Mono',monospace;font-size:1.35rem;margin-top:8px;color:var(--teal);}
+  .home-actions{display:flex;gap:10px;margin-bottom:22px;}
+  .history-filters{display:flex;gap:6px;margin-bottom:16px;}
+  .filter-btn{border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:999px;font-size:0.8rem;cursor:pointer;color:var(--ink);}
+  .filter-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+
+  /* ---- Invoice preview / print ---- */
+  #invoiceModal{
+    position:fixed;inset:0;background:rgba(27,36,48,0.5);display:none;
+    align-items:flex-start;justify-content:center;padding:24px 20px;overflow-y:auto;z-index:50;
+  }
+  #invoiceModal.open{display:flex;}
+  .invoice-paper{
+    background:#fff;width:100%;max-width:680px;padding:30px 46px 34px;border-radius:0;
+    box-shadow:0 20px 60px rgba(0,0,0,0.25);margin:0;
+  }
+  .inv-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;padding:20px 18px;background:#2b2b34;color:#fff;}
+  .inv-head h1{font-family:'Inter',sans-serif;font-size:1.05rem;font-weight:500;margin:0 0 5px;color:#fff;}
+  .inv-head h1::after{content:'';display:block;width:34px;border-bottom:2px solid #f5aa38;margin-top:4px;}
+  .inv-head .inv-brand-title{font-family:'Inter',sans-serif;font-size:1.95rem;font-style:italic;font-weight:400;line-height:1;color:#f0f0f0;}
+  .inv-head .inv-label{font-family:'Inter',sans-serif;font-size:2.1rem;font-weight:800;line-height:1;color:#f5aa38;letter-spacing:.02em;}
+  .inv-head .inv-brand-info{font-size:.72rem;color:#d8d8dc;margin-top:7px;}
+  .inv-meta{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:0.76rem;color:#fff;opacity:1;}
+  .inv-parties{display:flex;justify-content:space-between;margin-bottom:18px;font-size:0.78rem;}
+  .inv-parties > div:first-child{border:1px solid #444;padding:0 12px 10px;min-width:48%;}
+  .inv-parties > div:last-child{border:1px solid #444;padding:0 12px 10px;min-width:32%;}
+  .inv-parties .label{display:inline-block;background:#fff;color:#000;border:1px solid #444;padding:4px 10px;margin:-12px 0 9px;font-size:0.68rem;text-transform:none;font-weight:700;opacity:1;}
+  .inv-table{width:100%;border-collapse:collapse;margin-bottom:10px;border:1px solid #444;font-size:.73rem;}
+  .inv-table th{background:#f5aa38;color:#111;border:1px solid #444;padding:6px 5px;text-align:left;font-size:0.7rem;text-transform:none;opacity:1;}
+  .inv-table td{padding:6px 5px;border:1px solid #444;font-size:0.73rem;}
+  .inv-totals{margin-left:auto;width:250px;border-top:1px solid #444;}
+  .inv-totals .sum-row{font-size:0.76rem;padding:5px 0;border-bottom:0;}
+  .inv-totals .sum-row.total{background:#f5aa38;padding:5px 8px;font-size:.78rem;}
+  .inv-pay{display:flex;align-items:center;gap:16px;margin-top:22px;padding:14px 0;border-top:1px solid #444;border-bottom:1px solid #444;background:#fff;border-radius:0;}
+  .inv-pay img,.inv-pay canvas{width:104px;height:104px;border-radius:6px;background:#fff;}
+  .inv-pay .label{font-size:0.68rem;text-transform:uppercase;opacity:0.5;margin-bottom:4px;}
+  .inv-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:26px;}
+  .inv-terms{font-size:.74rem;line-height:1.45;margin-top:14px;max-width:270px;}
+  .inv-footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;font-size:.7rem;}
+  .inv-signature{text-align:center;min-width:140px;}
+  .inv-signature-line{border-top:1px solid #444;margin-bottom:8px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #invoiceModal, #invoiceModal *{visibility:visible;}
+    #invoiceModal{position:absolute;inset:auto;top:0;background:none;padding:0;display:flex;}
+    .invoice-paper{box-shadow:none;max-width:100%;}
+    .inv-actions{display:none;}
+  }
+
+  @media (max-width: 700px){
+    header{padding:12px 16px;gap:12px;align-items:flex-start;}
+    .brand{flex:0 0 auto;}
+    .tabs{justify-content:flex-start;overflow-x:auto;}
+    .tab-btn{padding:8px 11px;font-size:0.76rem;white-space:nowrap;}
+    main{width:100%;padding:24px 16px 110px;overflow:hidden;}
+    .home-stats{grid-template-columns:1fr;gap:10px;}
+    .home-actions{flex-wrap:wrap;}
+    .add-customer-row,.bill-grid{grid-template-columns:1fr;gap:12px;}
+    .add-customer-row > div:last-child{align-items:stretch;}
+    .add-customer-row .btn{flex:1;}
+    .summary{position:static;}
+    .card{padding:16px;margin-bottom:16px;overflow:hidden;}
+    table{display:block;overflow-x:auto;white-space:nowrap;}
+    .item-row{grid-template-columns:minmax(0,1fr) 64px;gap:6px;min-width:0;}
+    .item-head{display:none;}
+    .item-row > input:first-child{grid-column:1 / -1;}
+    .history-filters{overflow-x:auto;white-space:nowrap;padding-bottom:2px;}
+    .search-row input{max-width:none;}
+    #panel-settings .card > div[style*="grid-template-columns"]{grid-template-columns:1fr !important;gap:12px !important;}
+    .invoice-paper{padding:24px 16px;}
+    .inv-head,.inv-parties{gap:16px;flex-direction:column;}
+    .inv-meta{text-align:left;}
+    .inv-totals{width:100%;}
+    .inv-pay{align-items:flex-start;flex-direction:column;}
+    .inv-actions{justify-content:stretch;flex-wrap:wrap;}
+    .inv-actions .btn{flex:1;min-width:120px;}
+  }
+</style>
+<style>
+  #errorBanner{display:none;position:fixed;top:0;left:0;right:0;background:#B23A34;color:#fff;
+    padding:10px 16px;font-family:monospace;font-size:0.8rem;z-index:9999;white-space:pre-wrap;}
+</style>
+</head>
+<body>
+<div id="errorBanner"></div>
+
+<header>
+  <div class="brand"><div class="mark"></div><span>Billwise</span></div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="home" onclick="switchTab('home')">Home</button>
+    <button class="tab-btn" data-tab="customers" onclick="switchTab('customers')">Customers</button>
+    <button class="tab-btn" data-tab="newbill" onclick="switchTab('newbill')">New Bill</button>
+    <button class="tab-btn" data-tab="history" onclick="switchTab('history')">Bill History</button>
+    <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">Settings</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel active" id="panel-home">
+    <h2>Home</h2>
+    <div class="sub">Your billing overview at a glance.</div>
+    <div class="home-stats">
+      <div class="card home-stat"><label>Total bills</label><strong id="homeBillCount">0</strong></div>
+      <div class="card home-stat"><label>Customers</label><strong id="homeCustomerCount">0</strong></div>
+      <div class="card home-stat"><label>Balance due</label><strong id="homeBalance">Rs.0.00</strong></div>
+    </div>
+    <div class="home-actions">
+      <button class="btn btn-primary" onclick="switchTab('newbill')">+ New bill</button>
+      <button class="btn btn-ghost" onclick="switchTab('history')">Bill history</button>
+    </div>
+    <div class="card">
+      <label style="margin-bottom:8px;">Recent bills</label>
+      <table>
+        <thead><tr><th>Bill</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody id="homeRecentBills"></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel active" id="panel-customers">
+    <h2>Customers</h2>
+    <div class="sub">Add customers once, then pick them quickly when billing.</div>
+    <div class="note">Your customers, bills, products, and settings are saved locally on this device.</div>
+
+    <div class="card">
+      <div class="add-customer-row">
+        <div><label>Name</label><input id="custName" placeholder="type a name..."></div>
+        <div><label>Phone</label><input id="custPhone" placeholder="98765 43210"></div>
+        <div><label>Address</label><input id="custAddress" placeholder="address"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="custSaveBtn" onclick="saveCustomerForm()">+ Add customer</button>
+          <button class="btn btn-ghost" id="custCancelBtn" style="display:none;" onclick="cancelCustomerEdit()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label style="margin-bottom:8px;">Find / edit a customer</label>
+      <input id="customerSearch" list="customerNameList" placeholder="Type a customer's name to edit it..." oninput="onCustomerSearchInput(this.value)">
+      <datalist id="customerNameList"></datalist>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Bills</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+        <tbody id="customerRows"></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel" id="panel-newbill">
+    <h2>Create a bill</h2>
+    <div class="sub">Pick a customer, add line items, and save or print.</div>
+
+    <div class="bill-grid">
+      <div>
+        <div class="card">
+          <div style="margin-bottom:16px;"><label>Bill name / title</label><input id="billTitle" placeholder="Invoice" maxlength="80"></div>
+          <label>Customer</label>
+          <input id="billCustomer" list="customerList" placeholder="Enter customer name">
+          <datalist id="customerList"></datalist>
+        </div>
+
+        <div class="card">
+          <label style="margin-bottom:12px;">Items</label>
+          <div class="item-head"><span>Name</span><span>Quantity</span><span>Price</span><span>Amount</span><span></span></div>
+          <div id="itemRows"></div>
+          <datalist id="productList"></datalist>
+          <button class="btn btn-ghost add-item-btn" onclick="addItemRow()">+ Add item</button>
+        </div>
+      </div>
+
+      <div class="summary card">
+        <label>Tax rate (%)</label>
+        <input class="tax-input" id="taxRate" type="number" min="0" value="1" oninput="renderSummary()">
+        <div style="margin-top:16px;">
+          <div class="sum-row"><span>Subtotal</span><span class="mono" id="billSubtotal">₹0.00</span></div>
+          <div class="sum-row"><span>Tax</span><span class="mono" id="billTax">₹0.00</span></div>
+          <div class="sum-row total"><span>Total</span><span class="mono" id="billTotal">₹0.00</span></div>
+          <div class="sum-row"><span>Advance received</span><span class="mono"><input id="advanceInput" type="number" min="0" value="0" style="width:100px;text-align:right;" oninput="renderSummary()"></span></div>
+          <div class="sum-row total" style="color:var(--red);"><span>Balance due</span><span class="mono" id="billBalance">₹0.00</span></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="saveBill()">Save bill</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== HISTORY ===================== -->
+  <section class="panel" id="panel-history">
+    <h2>Bill history</h2>
+    <div class="sub">Every bill you've saved, searchable by customer.</div>
+    <div class="history-filters">
+      <button class="filter-btn active" data-filter="all" onclick="setHistoryFilter('all')">All</button>
+      <button class="filter-btn" data-filter="paid" onclick="setHistoryFilter('paid')">Paid</button>
+      <button class="filter-btn" data-filter="unpaid" onclick="setHistoryFilter('unpaid')">Not paid</button>
+    </div>
+    <div class="search-row">
+      <input id="historySearch" placeholder="Search by customer name..." oninput="renderHistory()">
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Bill #</th><th>Date</th><th>Customer</th><th>Total</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+        <tbody id="historyRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section class="panel" id="panel-settings">
+    <h2>Settings</h2>
+    <div class="sub">Your business details appear on every invoice you print or share.</div>
+
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div><label>Business name</label><input id="setBizName" placeholder="Your shop / business name"></div>
+        <div><label>Phone</label><input id="setBizPhone" placeholder="98765 43210"></div>
+      </div>
+      <div style="margin-bottom:16px;"><label>Default bill name / title</label><input id="setInvoiceTitle" placeholder="Invoice" maxlength="80"></div>
+      <div style="margin-bottom:16px;"><label>Address</label><input id="setBizAddress" placeholder="Shop address"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div><label>GST / tax ID (optional)</label><input id="setBizGst" placeholder="e.g. 33AAAAA0000A1Z5"></div>
+        <div><label>Default tax rate (%)</label><input id="setDefaultTax" type="number" min="0" value="1"></div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label>UPI ID for payments (for the "scan to pay" QR code)</label>
+        <input id="setBizUpi" placeholder="e.g. yourshop@okhdfcbank">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label>Business logo / letterhead image</label>
+        <input id="setLogoFile" type="file" accept="image/*" onchange="handleLogoUpload(event)">
+        <div id="logoPreviewWrap" style="margin-top:10px;display:none;align-items:center;gap:12px;">
+          <img id="logoPreview" style="height:48px;width:48px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">
+          <button class="btn btn-ghost" onclick="removeLogo()">Remove logo</button>
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label>Image shown on shared bills</label>
+        <input id="setInvoiceImageFile" type="file" accept="image/*" onchange="handleInvoiceImageUpload(event)">
+        <div id="invoiceImagePreviewWrap" style="margin-top:10px;display:none;align-items:center;gap:12px;">
+          <img id="invoiceImagePreview" style="max-height:80px;max-width:180px;object-fit:contain;border:1px solid var(--line);">
+          <button class="btn btn-ghost" onclick="removeInvoiceImage()">Remove image</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">Save settings</button>
+      <span id="settingsSavedMsg" style="display:none;color:var(--teal);font-size:0.82rem;margin-left:10px;">Saved ✓</span>
+    </div>
+
+    <div class="card">
+      <label style="margin-bottom:8px;">About sharing bills</label>
+      <div class="sub" style="margin-bottom:0;">Open any bill from Bill History and use <strong>Share</strong> to send a summary via WhatsApp, email, or any app your device offers — or <strong>Print / Save as PDF</strong> to save a copy with your logo and details attached. If a bill isn't fully paid and you've added a UPI ID above, a "scan to pay" QR code for the exact balance due is shown on the invoice automatically.</div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== INVOICE PREVIEW / PRINT ===================== -->
+<div id="invoiceModal">
+  <div class="invoice-paper" id="invoiceContent"></div>
+</div>
+
+<script>
+  window.onerror = function(msg, src, line, col){
+    const b = document.getElementById('errorBanner');
+    b.style.display = 'block';
+    b.textContent = 'Something went wrong: ' + msg + ' (line ' + line + ')';
+  };
+
+  // ---------------------------------------------------------------
+  // State is kept in memory while the app runs and persisted to IndexedDB.
+  // ---------------------------------------------------------------
+  let customers = [
+    { id: 1, name: "Ravi Kumar", phone: "98765 43210", address: "12 MG Road, Namakkal" },
+    { id: 2, name: "Priya Textiles", phone: "90123 45678", address: "Shop 4, Mill Street" },
+  ];
+  let bills = [];
+  let nextCustomerId = 3;
+  let nextBillNo = 1001;
+  let currentItems = [];
+  let nextItemRowId = 1;
+  let editingCustomerId = null;
+  let businessSettings = { name: '', phone: '', address: '', gst: '', upi: '', logo: null, invoiceTitle: 'Invoice', invoiceImage: null };
+  let historyFilter = 'all';
+  // Product catalog is built up from item names/prices used on saved bills,
+  // so the item name field can recommend names the user has typed before.
+  let productCatalog = [];
+
+  const databaseName = 'BillwiseDB';
+  const databaseVersion = 1;
+  const databaseStore = 'appState';
+
+  function openDatabase(){
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB){ reject(new Error('IndexedDB is unavailable')); return; }
+      const request = indexedDB.open(databaseName, databaseVersion);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(databaseStore)){
+          request.result.createObjectStore(databaseStore);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function saveDatabase(){
+    try {
+      const database = await openDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction(databaseStore, 'readwrite');
+        transaction.objectStore(databaseStore).put({
+          customers, bills, nextCustomerId, nextBillNo, businessSettings, productCatalog,
+        }, 'current');
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    } catch (error){
+      console.warn('Billwise database save failed:', error);
+    }
+  }
+
+  async function loadDatabase(){
+    try {
+      const database = await openDatabase();
+      const savedState = await new Promise((resolve, reject) => {
+        const request = database.transaction(databaseStore, 'readonly')
+          .objectStore(databaseStore).get('current');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      if (!savedState) return;
+      customers = Array.isArray(savedState.customers) ? savedState.customers : customers;
+      bills = Array.isArray(savedState.bills) ? savedState.bills : bills;
+      nextCustomerId = Number(savedState.nextCustomerId) || nextCustomerId;
+      nextBillNo = Number(savedState.nextBillNo) || nextBillNo;
+      businessSettings = savedState.businessSettings || businessSettings;
+      productCatalog = Array.isArray(savedState.productCatalog) ? savedState.productCatalog : productCatalog;
+    } catch (error){
+      console.warn('Billwise database load failed:', error);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------
+  function switchTab(tab){
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + tab).classList.add('active');
+    document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
+    if (tab === 'home') renderHome();
+    if (tab === 'newbill') { populateCustomerSelect(); populateProductList(); }
+    if (tab === 'history') { renderHistory(); }
+    if (tab === 'settings') { loadSettingsForm(); }
+  }
+
+  function renderHome(){
+    const totalBalance = bills.reduce((sum, bill) => sum + (Number(bill.balance) || 0), 0);
+    document.getElementById('homeBillCount').textContent = bills.length;
+    document.getElementById('homeCustomerCount').textContent = customers.length;
+    document.getElementById('homeBalance').textContent = 'Rs.' + totalBalance.toFixed(2);
+    const recentBills = bills.slice().reverse().slice(0, 5);
+    document.getElementById('homeRecentBills').innerHTML = recentBills.map(bill => `
+      <tr>
+        <td class="mono">#${bill.billNo}</td>
+        <td>${bill.customerName}</td>
+        <td class="mono">Rs.${bill.total.toFixed(2)}</td>
+        <td><span class="status-pill ${statusClass(bill)}">${statusLabel(bill)}</span></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="opacity:0.5;">No bills yet.</td></tr>';
+  }
+
+  // ---------------------------------------------------------------
+  // Customers
+  // ---------------------------------------------------------------
+  function saveCustomerForm(){
+    const name = document.getElementById('custName').value.trim();
+    if (!name){ alert('Enter a customer name.'); return; }
+    const phone = document.getElementById('custPhone').value.trim();
+    const address = document.getElementById('custAddress').value.trim();
+
+    if (editingCustomerId !== null){
+      const c = customers.find(c => c.id === editingCustomerId);
+      if (c){ c.name = name; c.phone = phone; c.address = address; }
+      cancelCustomerEdit();
+    } else {
+      customers.push({ id: nextCustomerId++, name, phone, address });
+      ['custName','custPhone','custAddress'].forEach(id => document.getElementById(id).value = '');
+    }
+    renderCustomers();
+    populateCustomerSelect();
+    saveDatabase();
+  }
+
+  // Typing an existing customer's name into the search box loads it into the
+  // form above so its details can be changed, matching on exact name.
+  function onCustomerSearchInput(value){
+    const match = customers.find(c => c.name.toLowerCase() === value.trim().toLowerCase());
+    if (match) editCustomer(match.id);
+  }
+
+  function editCustomer(id){
+    const c = customers.find(c => c.id === id);
+    if (!c) return;
+    editingCustomerId = id;
+    document.getElementById('custName').value = c.name;
+    document.getElementById('custPhone').value = c.phone;
+    document.getElementById('custAddress').value = c.address;
+    document.getElementById('custSaveBtn').textContent = 'Save changes';
+    document.getElementById('custCancelBtn').style.display = 'inline-block';
+    document.getElementById('custName').focus();
+  }
+
+  function cancelCustomerEdit(){
+    editingCustomerId = null;
+    ['custName','custPhone','custAddress'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('custSaveBtn').textContent = '+ Add customer';
+    document.getElementById('custCancelBtn').style.display = 'none';
+    document.getElementById('customerSearch').value = '';
+  }
+
+  function removeCustomer(id){
+    customers = customers.filter(c => c.id !== id);
+    if (editingCustomerId === id) cancelCustomerEdit();
+    renderCustomers();
+    populateCustomerSelect();
+    saveDatabase();
+  }
+
+  // Total outstanding balance a customer owes across every bill of theirs.
+  function customerBalance(customerId){
+    return bills
+      .filter(b => b.customerId === customerId)
+      .reduce((sum, b) => sum + b.balance, 0);
+  }
+
+  // A customer's overall status: "No bills" until they have one, then
+  // "Paid" only once every one of their bills is fully settled.
+  function customerStatus(customerId){
+    const custBills = bills.filter(b => b.customerId === customerId);
+    if (custBills.length === 0) return { label: 'No bills', cls: '' };
+    const balance = customerBalance(customerId);
+    if (balance <= 0) return { label: 'Paid', cls: '' };
+    const anyAdvance = custBills.some(b => b.advance > 0 && b.balance > 0);
+    return anyAdvance ? { label: 'Partial', cls: 'partial' } : { label: 'Not paid', cls: 'unpaid' };
+  }
+
+  function renderCustomers(){
+    document.getElementById('customerRows').innerHTML = customers.map(c => {
+      const billCount = bills.filter(b => b.customerId === c.id).length;
+      const balance = customerBalance(c.id);
+      const status = customerStatus(c.id);
+      return `
+        <tr>
+          <td>${c.name}</td>
+          <td class="mono">${c.phone || '—'}</td>
+          <td>${c.address || '—'}</td>
+          <td>${billCount}</td>
+          <td class="mono">${balance > 0 ? '₹' + balance.toFixed(2) : '—'}</td>
+          <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+          <td style="display:flex;gap:6px;">
+            <button class="btn btn-ghost" onclick="editCustomer(${c.id})">Edit</button>
+            <button class="btn btn-danger" onclick="removeCustomer(${c.id})">Remove</button>
+          </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" style="opacity:0.5;">No customers yet.</td></tr>';
+
+    const nameList = document.getElementById('customerNameList');
+    if (nameList){
+      nameList.innerHTML = customers.map(c => `<option value="${c.name}">`).join('');
+    }
+  }
+
+  function populateCustomerSelect(){
+    const list = document.getElementById('customerList');
+    const input = document.getElementById('billCustomer');
+    if (!list || !input) return;
+    list.innerHTML = '';
+    customers.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      list.appendChild(opt);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Settings
+  // ---------------------------------------------------------------
+  function loadSettingsForm(){
+    document.getElementById('setBizName').value = businessSettings.name;
+    document.getElementById('setBizPhone').value = businessSettings.phone;
+    document.getElementById('setBizAddress').value = businessSettings.address;
+    document.getElementById('setBizGst').value = businessSettings.gst;
+    document.getElementById('setBizUpi').value = businessSettings.upi;
+    document.getElementById('setInvoiceTitle').value = businessSettings.invoiceTitle || 'Invoice';
+    document.getElementById('setDefaultTax').value = document.getElementById('taxRate') ? document.getElementById('taxRate').value : 1;
+    const wrap = document.getElementById('logoPreviewWrap');
+    if (businessSettings.logo){
+      document.getElementById('logoPreview').src = businessSettings.logo;
+      wrap.style.display = 'flex';
+    } else {
+      wrap.style.display = 'none';
+    }
+    const imageWrap = document.getElementById('invoiceImagePreviewWrap');
+    if (businessSettings.invoiceImage){
+      document.getElementById('invoiceImagePreview').src = businessSettings.invoiceImage;
+      imageWrap.style.display = 'flex';
+    } else {
+      imageWrap.style.display = 'none';
+    }
+  }
+
+  function handleLogoUpload(evt){
+    const file = evt.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      businessSettings.logo = reader.result;
+      document.getElementById('logoPreview').src = reader.result;
+      document.getElementById('logoPreviewWrap').style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeLogo(){
+    businessSettings.logo = null;
+    document.getElementById('setLogoFile').value = '';
+    document.getElementById('logoPreviewWrap').style.display = 'none';
+  }
+
+  function handleInvoiceImageUpload(evt){
+    const file = evt.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const maxSize = 1400;
+        const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        businessSettings.invoiceImage = canvas.toDataURL('image/jpeg', 0.82);
+        document.getElementById('invoiceImagePreview').src = businessSettings.invoiceImage;
+        document.getElementById('invoiceImagePreviewWrap').style.display = 'flex';
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeInvoiceImage(){
+    businessSettings.invoiceImage = null;
+    document.getElementById('setInvoiceImageFile').value = '';
+    document.getElementById('invoiceImagePreviewWrap').style.display = 'none';
+  }
+
+  function saveSettings(){
+    businessSettings.name = document.getElementById('setBizName').value.trim();
+    businessSettings.phone = document.getElementById('setBizPhone').value.trim();
+    businessSettings.address = document.getElementById('setBizAddress').value.trim();
+    businessSettings.gst = document.getElementById('setBizGst').value.trim();
+    businessSettings.upi = document.getElementById('setBizUpi').value.trim();
+    businessSettings.invoiceTitle = document.getElementById('setInvoiceTitle').value.trim() || 'Invoice';
+    const defTax = Number(document.getElementById('setDefaultTax').value) || 0;
+    const taxInput = document.getElementById('taxRate');
+    if (taxInput) taxInput.value = defTax;
+    const billTitleInput = document.getElementById('billTitle');
+    if (billTitleInput && !billTitleInput.value.trim()) billTitleInput.value = businessSettings.invoiceTitle;
+
+    // Reflect the new business name in the header brand mark.
+    const brandSpan = document.querySelector('.brand span');
+    if (brandSpan) brandSpan.textContent = businessSettings.name || 'Billwise';
+
+    const msg = document.getElementById('settingsSavedMsg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+    saveDatabase();
+  }
+
+  // ---------------------------------------------------------------
+  // New Bill
+  // ---------------------------------------------------------------
+  function populateProductList(){
+    const list = document.getElementById('productList');
+    if (!list) return;
+    list.innerHTML = productCatalog.map(p => `<option value="${p.name}">`).join('');
+  }
+
+  // When an item name matches something recommended from past bills,
+  // auto-fill the last price used for it.
+  function recommendPrice(name){
+    const match = productCatalog.find(p => p.name.toLowerCase() === name.trim().toLowerCase());
+    return match ? match.price : null;
+  }
+
+  function showEmptyItemsMessage(){
+    const box = document.getElementById('itemRows');
+    box.innerHTML = '<div class="empty-items-msg" style="opacity:0.5;font-size:0.85rem;padding:8px 0;">No items yet — add one below.</div>';
+  }
+
+  // Builds one item row as real DOM nodes (not an HTML string) and wires
+  // each input directly to its own listener, so typing updates state
+  // immediately and nothing about the row ever gets rebuilt while editing.
+  function addItemRow(){
+    const item = { rowId: nextItemRowId++, name: '', qty: 1, price: 0 };
+    currentItems.push(item);
+
+    const box = document.getElementById('itemRows');
+    const emptyMsg = box.querySelector('.empty-items-msg');
+    if (emptyMsg) emptyMsg.remove();
+
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.dataset.rowId = String(item.rowId);
+
+    const nameInput = document.createElement('input');
+    nameInput.placeholder = 'Item name';
+    nameInput.setAttribute('list', 'productList');
+    nameInput.value = item.name;
+
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.min = '1';
+    qtyInput.placeholder = 'Qty';
+    qtyInput.value = String(item.qty);
+
+    const priceInput = document.createElement('input');
+    priceInput.className = 'priceInput';
+    priceInput.type = 'number';
+    priceInput.min = '0';
+    priceInput.placeholder = 'Price';
+    priceInput.value = String(item.price);
+
+    const lineTotal = document.createElement('span');
+    lineTotal.className = 'lineTotal';
+    lineTotal.textContent = '₹0.00';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-danger';
+    removeBtn.textContent = '✕';
+
+    nameInput.addEventListener('input', () => {
+      item.name = nameInput.value;
+      // Recommend a price from past bills once, only while the price
+      // field is still at its untouched default.
+      if (item.price === 0){
+        const suggested = recommendPrice(nameInput.value);
+        if (suggested !== null){
+          item.price = suggested;
+          priceInput.value = String(suggested);
+        }
+      }
+      renderSummary();
+    });
+    qtyInput.addEventListener('input', () => {
+      item.qty = Number(qtyInput.value) || 0;
+      renderSummary();
+    });
+    priceInput.addEventListener('input', () => {
+      item.price = Number(priceInput.value) || 0;
+      renderSummary();
+    });
+    removeBtn.addEventListener('click', () => removeItemRow(item.rowId, row));
+
+    row.append(nameInput, qtyInput, priceInput, lineTotal, removeBtn);
+    box.appendChild(row);
+    renderSummary();
+  }
+
+  function removeItemRow(rowId, rowEl){
+    currentItems = currentItems.filter(i => i.rowId !== rowId);
+    if (rowEl && rowEl.parentNode) rowEl.remove();
+    if (currentItems.length === 0) showEmptyItemsMessage();
+    renderSummary();
+  }
+
+  // Clears every item row and starts a fresh single empty row — used
+  // after a bill is saved, or on first load.
+  function resetItemRows(){
+    currentItems = [];
+    document.getElementById('itemRows').innerHTML = '';
+    addItemRow();
+  }
+
+  function computeTotals(){
+    const subtotal = currentItems.reduce((sum, i) => sum + (i.qty * i.price), 0);
+    const taxRate = Number(document.getElementById('taxRate').value) || 0;
+    const tax = subtotal * (taxRate / 100);
+    const total = subtotal + tax;
+    const advance = Number(document.getElementById('advanceInput').value) || 0;
+    const balance = Math.max(0, total - advance);
+    return { subtotal, tax, total, advance, balance, taxRate };
+  }
+
+  function renderSummary(){
+    // Refresh line totals without re-rendering whole row list (avoids losing focus)
+    document.querySelectorAll('.item-row').forEach((row, idx) => {
+      const item = currentItems[idx];
+      if (item) row.querySelector('.lineTotal').textContent = '₹' + (item.qty * item.price).toFixed(2);
+    });
+    const t = computeTotals();
+    document.getElementById('billSubtotal').textContent = '₹' + t.subtotal.toFixed(2);
+    document.getElementById('billTax').textContent = '₹' + t.tax.toFixed(2);
+    document.getElementById('billTotal').textContent = '₹' + t.total.toFixed(2);
+    document.getElementById('billBalance').textContent = '₹' + t.balance.toFixed(2);
+  }
+
+  function saveBill(){
+    const custInput = (document.getElementById('billCustomer').value || '').trim();
+    if (!custInput){ alert('Add and select a customer first.'); return; }
+    let customer = customers.find(c => c.name.toLowerCase() === custInput.toLowerCase());
+    if (!customer){
+      customer = { id: nextCustomerId++, name: custInput, phone: '', address: '' };
+      customers.push(customer);
+      renderCustomers();
+      populateCustomerSelect();
+    }
+    if (currentItems.length === 0 || currentItems.every(i => !i.name.trim())){
+      alert('Add at least one item.'); return;
+    }
+    const t = computeTotals();
+    const bill = {
+      billNo: nextBillNo++,
+      title: (document.getElementById('billTitle').value || businessSettings.invoiceTitle || 'Invoice').trim(),
+      date: new Date().toISOString().slice(0,10),
+      customerId: customer.id,
+      customerName: customer.name,
+      customerAddress: customer.address,
+      items: JSON.parse(JSON.stringify(currentItems)),
+      taxRate: t.taxRate,
+      subtotal: t.subtotal,
+      tax: t.tax,
+      total: t.total,
+      advance: t.advance,
+      balance: t.balance,
+    };
+    bills.push(bill);
+
+    // Remember item names/prices so they can be recommended on future bills.
+    bill.items.forEach(i => {
+      if (!i.name.trim()) return;
+      const existing = productCatalog.find(p => p.name.toLowerCase() === i.name.trim().toLowerCase());
+      if (existing) existing.price = i.price;
+      else productCatalog.push({ name: i.name.trim(), price: i.price });
+    });
+    populateProductList();
+
+    // reset form
+    document.getElementById('advanceInput').value = 0;
+    document.getElementById('billTitle').value = businessSettings.invoiceTitle || 'Invoice';
+    resetItemRows();
+    renderCustomers();
+    saveDatabase();
+
+    openInvoice(bill);
+  }
+
+  // ---------------------------------------------------------------
+  // History
+  // ---------------------------------------------------------------
+  function statusLabel(b){
+    if (b.balance <= 0) return 'Paid';
+    if (b.advance > 0) return 'Partial';
+    return 'Not paid';
+  }
+  function statusClass(b){
+    if (b.balance <= 0) return '';
+    if (b.advance > 0) return 'partial';
+    return 'unpaid';
+  }
+
+  // Marks a bill fully paid (advance = total) or reopens it as not paid.
+  function togglePaid(billNo){
+    const b = bills.find(x => x.billNo === billNo);
+    if (!b) return;
+    if (b.balance > 0){
+      b.advance = b.total;
+      b.balance = 0;
+    } else {
+      b.advance = 0;
+      b.balance = b.total;
+    }
+    renderHistory();
+    renderCustomers();
+    saveDatabase();
+  }
+
+  function setHistoryFilter(filter){
+    historyFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+    renderHistory();
+  }
+
+  function renderHistory(){
+    const q = (document.getElementById('historySearch').value || '').toLowerCase();
+    const rows = bills
+      .filter(b => b.customerName.toLowerCase().includes(q))
+      .filter(b => {
+        if (historyFilter === 'paid') return b.balance <= 0;
+        if (historyFilter === 'unpaid') return b.balance > 0;
+        return true;
+      })
+      .slice().reverse();
+    document.getElementById('historyRows').innerHTML = rows.map(b => `
+      <tr>
+        <td class="mono">#${b.billNo}</td>
+        <td class="mono">${b.date}</td>
+        <td>${b.customerName}</td>
+        <td class="mono">₹${b.total.toFixed(2)}</td>
+        <td class="mono">${b.balance > 0 ? '₹' + b.balance.toFixed(2) : '—'}</td>
+        <td>
+          <span class="status-pill ${statusClass(b)}" style="cursor:pointer;" title="Click to toggle" onclick="togglePaid(${b.billNo})">${statusLabel(b)}</span>
+        </td>
+        <td><button class="btn btn-ghost" onclick="openInvoice(bills.find(x=>x.billNo===${b.billNo}))">View / Print</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="7" style="opacity:0.5;">No bills match.</td></tr>';
+  }
+
+  // ---------------------------------------------------------------
+  // Invoice preview + print
+  // ---------------------------------------------------------------
+  function openInvoice(bill){
+    if (!bill) return;
+    const itemRowsHtml = bill.items.map(i => `
+      <tr>
+        <td>${i.name}</td>
+        <td class="mono">${i.qty}</td>
+        <td class="mono">₹${i.price.toFixed(2)}</td>
+        <td class="mono">₹${(i.qty * i.price).toFixed(2)}</td>
+      </tr>`).join('');
+
+    const bizName = businessSettings.name || 'Billwise';
+    const invoiceTitle = bill.title || businessSettings.invoiceTitle || 'Invoice';
+    const invoiceImageHtml = businessSettings.invoiceImage
+      ? `<img src="${businessSettings.invoiceImage}" alt="Invoice image" style="display:block;width:100%;max-height:220px;object-fit:contain;margin:0 0 24px;border:1px solid var(--line);">`
+      : '';
+    const logoHtml = businessSettings.logo
+      ? `<img src="${businessSettings.logo}" style="height:44px;width:44px;object-fit:cover;border-radius:8px;">`
+      : '';
+
+    const showQr = bill.balance > 0 && businessSettings.upi;
+    const payHtml = showQr ? `
+      <div class="inv-pay">
+        <div id="qrHolder"></div>
+        <div>
+          <div class="label">Scan to pay</div>
+          <div style="font-weight:600;">₹${bill.balance.toFixed(2)} to ${businessSettings.upi}</div>
+          <div style="opacity:0.6;font-size:0.78rem;margin-top:4px;">Any UPI app — GPay, PhonePe, Paytm — can scan this.</div>
+        </div>
+      </div>` : '';
+
+    document.getElementById('invoiceContent').innerHTML = `
+      ${invoiceImageHtml}
+      <div class="inv-head">
+        <div style="display:flex;align-items:center;gap:12px;">
+          ${logoHtml}
+          <div>
+            <h1>${bizName}</h1>
+            <div class="inv-brand-info">${businessSettings.address || 'Business address'}${businessSettings.phone ? ' · ' + businessSettings.phone : ''}</div>
+            ${businessSettings.gst ? `<div class="inv-brand-info">GSTIN: ${businessSettings.gst}</div>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div class="inv-brand-title">${invoiceTitle}</div>
+          <div class="inv-label">INVOICE</div>
+        </div>
+        <div class="inv-meta">
+          Bill #${bill.billNo}<br>
+          ${bill.date}
+        </div>
+      </div>
+      <div class="inv-parties">
+        <div>
+          <div class="label">Billed to</div>
+          <div><strong>Name</strong> : ${bill.customerName}</div>
+          <div style="opacity:0.7;"><strong>Address</strong> : ${bill.customerAddress || ''}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="label">Payment status</div>
+          <div><strong>Date</strong> : ${bill.date}</div>
+          <span class="status-pill ${statusClass(bill)}">${statusLabel(bill)}</span>
+        </div>
+      </div>
+      <table class="inv-table">
+        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead>
+        <tbody>${itemRowsHtml}</tbody>
+      </table>
+      <div class="inv-totals">
+        <div class="sum-row"><span>Subtotal</span><span class="mono">₹${bill.subtotal.toFixed(2)}</span></div>
+        <div class="sum-row"><span>Tax (${bill.taxRate}%)</span><span class="mono">₹${bill.tax.toFixed(2)}</span></div>
+        <div class="sum-row total"><span>Total</span><span class="mono">₹${bill.total.toFixed(2)}</span></div>
+        <div class="sum-row"><span>Advance received</span><span class="mono">₹${bill.advance.toFixed(2)}</span></div>
+        <div class="sum-row total" style="color:var(--red);"><span>Balance due</span><span class="mono">₹${bill.balance.toFixed(2)}</span></div>
+      </div>
+      <div class="inv-terms"><strong>Terms and Conditions:</strong><br><br>Payment is due within 15 days from the date of the invoice.</div>
+      ${payHtml}
+      <div class="inv-footer">
+        <div>Thank you for your attention. We value our partnership<br>and look forward to providing excellent services.</div>
+        <div class="inv-signature"><div class="inv-signature-line"></div>Authorized signature</div>
+      </div>
+      <div class="inv-actions">
+        <button class="btn btn-ghost" onclick="closeInvoice()">Close</button>
+        <button class="btn btn-ghost" onclick="togglePaid(${bill.billNo}); openInvoice(bills.find(x=>x.billNo===${bill.billNo}))">${bill.balance > 0 ? 'Mark as paid' : 'Mark as not paid'}</button>
+        <button class="btn btn-ghost" onclick="shareBill(${bill.billNo})">Share</button>
+        <button class="btn btn-ghost" onclick="shareToWhatsApp(${bill.billNo})">WhatsApp</button>
+        <button class="btn btn-ghost" onclick="shareToEmail(${bill.billNo})">Email</button>
+        <button class="btn btn-primary" onclick="printInvoice()">Print / Save as PDF</button>
+      </div>
+    `;
+    document.getElementById('invoiceModal').classList.add('open');
+    document.getElementById('invoiceModal').scrollTop = 0;
+
+    // Draw the UPI "scan to pay" QR after the holder element is in the DOM.
+    if (showQr){
+      const holder = document.getElementById('qrHolder');
+      if (holder && window.QRCode){
+        const upiUrl = 'upi://pay?pa=' + encodeURIComponent(businessSettings.upi)
+          + '&pn=' + encodeURIComponent(bizName)
+          + '&am=' + encodeURIComponent(bill.balance.toFixed(2))
+          + '&cu=INR&tn=' + encodeURIComponent('Bill #' + bill.billNo);
+        new QRCode(holder, { text: upiUrl, width: 104, height: 104, correctLevel: QRCode.CorrectLevel.M });
+      }
+    }
+  }
+
+  function closeInvoice(){
+    document.getElementById('invoiceModal').classList.remove('open');
+  }
+
+  async function printInvoice(){
+    if (!document.getElementById('invoiceModal').classList.contains('open')) return;
+    const nativePrint = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativePrint;
+    if (nativePrint){
+      const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent).join('\n');
+      const invoiceHtml = `<!doctype html><html><head><meta charset="UTF-8"><style>${styles}</style></head><body>${document.getElementById('invoiceContent').outerHTML}</body></html>`;
+      try {
+        await nativePrint.print({ html: invoiceHtml });
+        return;
+      } catch (error) {
+        console.warn('Native print failed; opening browser print dialog:', error);
+      }
+    }
+    try {
+      window.setTimeout(() => window.print(), 0);
+    } catch (error) {
+      alert('Printing is not available on this device. Use Share to send the bill instead.');
+    }
+  }
+
+  function billShareText(billNo){
+    const bill = bills.find(item => item.billNo === billNo);
+    if (!bill) return null;
+    const bizName = businessSettings.name || 'Billwise';
+    const lines = [
+      `${bill.title || businessSettings.invoiceTitle || 'Invoice'} - ${bizName} #${bill.billNo} (${bill.date})`,
+      `Billed to: ${bill.customerName}`,
+      '',
+      ...bill.items.map(item => `${item.name}  x${item.qty}  Rs.${(item.qty * item.price).toFixed(2)}`),
+      '',
+      `Subtotal: Rs.${bill.subtotal.toFixed(2)}`,
+      `Tax (${bill.taxRate}%): Rs.${bill.tax.toFixed(2)}`,
+      `Total: Rs.${bill.total.toFixed(2)}`,
+      `Advance received: Rs.${bill.advance.toFixed(2)}`,
+      `Balance due: Rs.${bill.balance.toFixed(2)}`,
+      `Status: ${statusLabel(bill)}`,
+    ];
+    if (bill.balance > 0 && businessSettings.upi){
+      lines.push('', `Pay via UPI: ${businessSettings.upi} (amount Rs.${bill.balance.toFixed(2)})`);
+    }
+    return { bill, text: lines.join('\n'), imageData: businessSettings.invoiceImage || '' };
+  }
+
+  async function shareToWhatsApp(billNo){
+    return shareBillPage(billNo, 'whatsapp');
+  }
+
+  async function shareToEmail(billNo){
+    return shareBillPage(billNo, 'email');
+  }
+
+  async function copyShareText(text){
+    if (navigator.clipboard){
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Bill summary copied. Paste it into WhatsApp, email, or another app.');
+        return;
+      } catch (error) {
+        // Use the visible prompt fallback below.
+      }
+    }
+    window.prompt('Copy this bill summary into WhatsApp:', text);
+  }
+
+  function invoiceImageFile(imageData, billNo){
+    if (!imageData || !imageData.startsWith('data:image/')) return null;
+    const parts = imageData.split(',', 2);
+    const mimeType = parts[0].match(/data:(.*?);base64/);
+    if (!mimeType || !parts[1]) return null;
+    const bytes = atob(parts[1]);
+    const buffer = new Uint8Array(bytes.length);
+    for (let index = 0; index < bytes.length; index++) buffer[index] = bytes.charCodeAt(index);
+    return new File([buffer], `invoice-${billNo}.jpg`, { type: mimeType[1] });
+  }
+
+  async function captureBillPage(){
+    const invoice = document.getElementById('invoiceContent');
+    if (!invoice || !window.html2canvas) return '';
+    try {
+      const canvas = await window.html2canvas(invoice, { backgroundColor: '#ffffff', scale: 1.5, useCORS: true });
+      return canvas.toDataURL('image/jpeg', 0.82);
+    } catch (error) {
+      console.warn('Bill page image capture failed:', error);
+      return '';
+    }
+  }
+
+  // Uses the native share sheet where available, then provides browser-safe
+  // copy fallbacks for desktop browsers and local APK pages.
+  async function shareBill(billNo){
+    return shareBillPage(billNo, 'all');
+  }
+
+  async function shareBillPage(billNo, mode){
+    const shareData = billShareText(billNo);
+    if (!shareData) return;
+    const b = shareData.bill;
+    const imageData = await captureBillPage();
+    const shareImage = imageData || shareData.imageData;
+    const title = `${b.title || 'Invoice'} #${b.billNo}`;
+
+    const nativeShareBridge = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeShare;
+    if (nativeShareBridge){
+      try {
+        await nativeShareBridge.share({ title, text: shareData.text, imageData: shareImage, packageName: mode === 'whatsapp' ? 'com.whatsapp' : '' });
+        return;
+      } catch (error){
+        console.warn('Invoice page share failed:', error);
+      }
+    }
+
+    if (navigator.share){
+      try {
+        const imageFile = invoiceImageFile(shareImage, b.billNo);
+        const sharePayload = { title, text: shareData.text };
+        if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })){
+          sharePayload.files = [imageFile];
+        }
+        await navigator.share(sharePayload);
+        return;
+      } catch (error){
+        if (error && error.name === 'AbortError') return;
+      }
+    }
+    await copyShareText(shareData.text);
+  }
+
+  // ---------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------
+  async function initApp(){
+    await loadDatabase();
+    renderCustomers();
+    renderHome();
+    populateCustomerSelect();
+    populateProductList();
+    addItemRow();
+  }
+
+  initApp();
+</script>
+</body>
+</html>

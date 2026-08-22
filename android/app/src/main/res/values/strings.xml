@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Billwise</string>
+    <string name="title_activity_main">Billwise</string>
+    <string name="package_name">com.billwise.app</string>
+    <string name="custom_url_scheme">com.billwise.app</string>
+</resources>
