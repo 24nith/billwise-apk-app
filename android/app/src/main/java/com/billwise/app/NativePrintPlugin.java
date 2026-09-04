@@ -32,6 +32,7 @@ public class NativePrintPlugin extends Plugin {
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build();
                         printManager.print("Billwise Invoice", view.createPrintDocumentAdapter("Billwise Invoice"), attributes);
+                        call.resolve();
                     } catch (Exception error) {
                         call.reject("Could not open the print service", error);
                     }

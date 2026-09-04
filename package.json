@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build:web": "node -e \"require('fs').mkdirSync('www',{recursive:true}); require('fs').copyFileSync('billwise (2).html','www/index.html')\"",
+    "test": "node --test tests/app.test.mjs",
     "update:all": "npm run android:sync",
     "android:add": "npx cap add android",
     "android:sync": "npm run build:web && npx cap sync android",

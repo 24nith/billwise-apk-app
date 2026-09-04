@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root{
     --ink:#20252b; --paper:#f5f1e8; --paper2:#ebe4d6; --brass:#c3974b;
@@ -93,6 +94,13 @@
   .history-filters{display:flex;gap:6px;margin-bottom:16px;}
   .filter-btn{border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:999px;font-size:0.8rem;cursor:pointer;color:var(--ink);}
   .filter-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  #paymentModal{position:fixed;inset:0;background:rgba(27,36,48,0.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:60;}
+  #paymentModal.open{display:flex;}
+  .payment-dialog{background:#fff;width:100%;max-width:430px;padding:24px;border:1px solid var(--line);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+  .payment-dialog h3{font-family:'Spectral',serif;font-size:1.35rem;margin:0 0 4px;}
+  .payment-dialog .sub{margin-bottom:18px;}
+  .payment-field{margin-bottom:14px;}
+  .payment-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
 
   /* ---- Invoice preview / print ---- */
   #invoiceModal{
@@ -198,6 +206,9 @@
     <div class="home-actions">
       <button class="btn btn-primary" onclick="switchTab('newbill')">+ New bill</button>
       <button class="btn btn-ghost" onclick="switchTab('history')">Bill history</button>
+      <button class="btn btn-ghost" onclick="openHomePhotoPicker()">Photo</button>
+      <input id="homePhotoInput" type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleHomePhoto(event)">
+      <span id="photoOcrStatus" class="sub" style="margin:0;align-self:center;"></span>
     </div>
     <div class="card">
       <label style="margin-bottom:8px;">Recent bills</label>
@@ -266,6 +277,7 @@
           <div class="sum-row"><span>Subtotal</span><span class="mono" id="billSubtotal">₹0.00</span></div>
           <div class="sum-row"><span>Tax</span><span class="mono" id="billTax">₹0.00</span></div>
           <div class="sum-row total"><span>Total</span><span class="mono" id="billTotal">₹0.00</span></div>
+          <div class="sum-row"><span>Total multiplier</span><span class="mono"><input id="totalMultiplier" type="number" min="0" step="0.01" value="1" style="width:100px;text-align:right;" oninput="renderSummary()"></span></div>
           <div class="sum-row"><span>Advance received</span><span class="mono"><input id="advanceInput" type="number" min="0" value="0" style="width:100px;text-align:right;" oninput="renderSummary()"></span></div>
           <div class="sum-row total" style="color:var(--red);"><span>Balance due</span><span class="mono" id="billBalance">₹0.00</span></div>
         </div>
@@ -346,6 +358,24 @@
 <div id="invoiceModal">
   <div class="invoice-paper" id="invoiceContent"></div>
 </div>
+<div id="paymentModal">
+  <form class="payment-dialog" onsubmit="receivePayment(event)">
+    <h3>Receive payment</h3>
+    <div class="sub" id="paymentBillInfo"></div>
+    <div class="payment-field">
+      <label for="paymentAmount">Amount received</label>
+      <input id="paymentAmount" type="number" min="0.01" step="0.01" required>
+    </div>
+    <div class="payment-field">
+      <label for="paymentDate">Payment date</label>
+      <input id="paymentDate" type="date" required>
+    </div>
+    <div class="payment-actions">
+      <button type="button" class="btn btn-ghost" onclick="closePaymentModal()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save payment</button>
+    </div>
+  </form>
+</div>
 
 <script>
   window.onerror = function(msg, src, line, col){
@@ -369,6 +399,7 @@
   let editingCustomerId = null;
   let businessSettings = { name: '', phone: '', address: '', gst: '', upi: '', logo: null, invoiceTitle: 'Invoice', invoiceImage: null };
   let historyFilter = 'all';
+  let paymentBillNo = null;
   // Product catalog is built up from item names/prices used on saved bills,
   // so the item name field can recommend names the user has typed before.
   let productCatalog = [];
@@ -425,6 +456,11 @@
       nextBillNo = Number(savedState.nextBillNo) || nextBillNo;
       businessSettings = savedState.businessSettings || businessSettings;
       productCatalog = Array.isArray(savedState.productCatalog) ? savedState.productCatalog : productCatalog;
+      bills.forEach(bill => {
+        if (!Array.isArray(bill.payments)) bill.payments = bill.advance > 0
+          ? [{ amount: Number(bill.advance) || 0, date: bill.date }]
+          : [];
+      });
     } catch (error){
       console.warn('Billwise database load failed:', error);
     }
@@ -458,6 +494,83 @@
         <td><span class="status-pill ${statusClass(bill)}">${statusLabel(bill)}</span></td>
       </tr>
     `).join('') || '<tr><td colspan="4" style="opacity:0.5;">No bills yet.</td></tr>';
+  }
+
+  function openHomePhotoPicker(){
+    document.getElementById('homePhotoInput').click();
+  }
+
+  function handleHomePhoto(event){
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      switchTab('newbill');
+      setPhotoOcrStatus('Reading product text...');
+      readProductsFromPhoto(reader.result);
+      event.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setPhotoOcrStatus(message){
+    const status = document.getElementById('photoOcrStatus');
+    if (status) status.textContent = message;
+  }
+
+  function parseOcrItems(text){
+    return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+      if (/^(total|subtotal|tax|amount|price|qty|quantity|invoice|bill)/i.test(line)) return null;
+      const values = [...line.matchAll(/(?:₹|rs\.?|inr\s*)?([0-9]+(?:[.,][0-9]{1,2})?)/gi)]
+        .map(match => Number(match[1].replace(',', '.'))).filter(Number.isFinite);
+      if (values.length === 0) return null;
+      const price = values[values.length - 1];
+      const quantityMatch = line.match(/(?:x|qty\.?|quantity)\s*([0-9]+(?:\.[0-9]+)?)/i);
+      const quantity = quantityMatch ? Number(quantityMatch[1]) : values.length > 1 ? values[values.length - 2] : 1;
+      const name = line.replace(/(?:₹|rs\.?|inr\s*)?[0-9]+(?:[.,][0-9]{1,2})?/gi, '')
+        .replace(/(?:x|qty\.?|quantity)\s*/gi, '').replace(/[|:=-]+/g, ' ').trim();
+      if (!name || !Number.isFinite(price) || !Number.isFinite(quantity) || quantity <= 0) return null;
+      return { name, qty: quantity, price };
+    }).filter(Boolean);
+  }
+
+  async function readProductsFromPhoto(imageData){
+    if (!window.Tesseract){
+      setPhotoOcrStatus('Text reader is unavailable. Check internet and try again.');
+      return;
+    }
+    try {
+      const result = await window.Tesseract.recognize(imageData, 'eng', {
+        logger: progress => {
+          if (progress.status === 'recognizing text' && progress.progress){
+            setPhotoOcrStatus(`Reading text ${Math.round(progress.progress * 100)}%...`);
+          }
+        }
+      });
+      const items = parseOcrItems(result.data.text || '');
+      if (!items.length){
+        setPhotoOcrStatus('No product, quantity, and price found. Try a clearer photo.');
+        return;
+      }
+      currentItems = [];
+      document.getElementById('itemRows').innerHTML = '';
+      items.forEach(parsed => {
+        addItemRow();
+        const item = currentItems[currentItems.length - 1];
+        item.name = parsed.name;
+        item.qty = parsed.qty;
+        item.price = parsed.price;
+        const row = document.querySelectorAll('.item-row')[currentItems.length - 1];
+        row.querySelector('input').value = item.name;
+        row.querySelector('input[type="number"]').value = item.qty;
+        row.querySelector('.priceInput').value = item.price;
+      });
+      renderSummary();
+      setPhotoOcrStatus(`${items.length} product${items.length === 1 ? '' : 's'} added. Check the values before saving.`);
+    } catch (error){
+      console.warn('Product photo OCR failed:', error);
+      setPhotoOcrStatus('Could not read this photo. Use a clear, well-lit image.');
+    }
   }
 
   // ---------------------------------------------------------------
@@ -535,6 +648,22 @@
     return anyAdvance ? { label: 'Partial', cls: 'partial' } : { label: 'Not paid', cls: 'unpaid' };
   }
 
+  function startBillForCustomer(customerId){
+    const customer = customers.find(item => item.id === customerId);
+    if (!customer) return;
+    switchTab('newbill');
+    document.getElementById('billCustomer').value = customer.name;
+    document.getElementById('billCustomer').focus();
+  }
+
+  function viewCustomerBills(customerId){
+    const customer = customers.find(item => item.id === customerId);
+    if (!customer) return;
+    switchTab('history');
+    document.getElementById('historySearch').value = customer.name;
+    renderHistory();
+  }
+
   function renderCustomers(){
     document.getElementById('customerRows').innerHTML = customers.map(c => {
       const billCount = bills.filter(b => b.customerId === c.id).length;
@@ -547,8 +676,10 @@
           <td>${c.address || '—'}</td>
           <td>${billCount}</td>
           <td class="mono">${balance > 0 ? '₹' + balance.toFixed(2) : '—'}</td>
-          <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+          <td><span class="status-pill ${status.cls}" style="cursor:pointer;" title="View and edit bill status" onclick="viewCustomerBills(${c.id})">${status.label}</span></td>
           <td style="display:flex;gap:6px;">
+            <button class="btn btn-primary" onclick="startBillForCustomer(${c.id})">New bill</button>
+            <button class="btn btn-ghost" onclick="viewCustomerBills(${c.id})">View bills</button>
             <button class="btn btn-ghost" onclick="editCustomer(${c.id})">Edit</button>
             <button class="btn btn-danger" onclick="removeCustomer(${c.id})">Remove</button>
           </td>
@@ -779,10 +910,11 @@
     const subtotal = currentItems.reduce((sum, i) => sum + (i.qty * i.price), 0);
     const taxRate = Number(document.getElementById('taxRate').value) || 0;
     const tax = subtotal * (taxRate / 100);
-    const total = subtotal + tax;
+    const multiplier = Math.max(0, Number(document.getElementById('totalMultiplier').value) || 0);
+    const total = (subtotal + tax) * multiplier;
     const advance = Number(document.getElementById('advanceInput').value) || 0;
     const balance = Math.max(0, total - advance);
-    return { subtotal, tax, total, advance, balance, taxRate };
+    return { subtotal, tax, total, advance, balance, taxRate, multiplier };
   }
 
   function renderSummary(){
@@ -824,6 +956,7 @@
       subtotal: t.subtotal,
       tax: t.tax,
       total: t.total,
+      multiplier: t.multiplier,
       advance: t.advance,
       balance: t.balance,
     };
@@ -840,6 +973,7 @@
 
     // reset form
     document.getElementById('advanceInput').value = 0;
+    document.getElementById('totalMultiplier').value = 1;
     document.getElementById('billTitle').value = businessSettings.invoiceTitle || 'Invoice';
     resetItemRows();
     renderCustomers();
@@ -867,14 +1001,56 @@
     const b = bills.find(x => x.billNo === billNo);
     if (!b) return;
     if (b.balance > 0){
+      if (!Array.isArray(b.payments)) b.payments = [];
+      b.payments.push({ amount: b.balance, date: new Date().toISOString().slice(0, 10) });
       b.advance = b.total;
       b.balance = 0;
     } else {
+      b.payments = [];
       b.advance = 0;
       b.balance = b.total;
     }
     renderHistory();
     renderCustomers();
+    saveDatabase();
+  }
+
+  function openPaymentModal(billNo){
+    const bill = bills.find(item => item.billNo === billNo);
+    if (!bill || bill.balance <= 0) return;
+    paymentBillNo = billNo;
+    document.getElementById('paymentBillInfo').textContent = `${bill.customerName} · Bill #${bill.billNo} · Balance ₹${bill.balance.toFixed(2)}`;
+    document.getElementById('paymentAmount').value = bill.balance.toFixed(2);
+    document.getElementById('paymentAmount').max = bill.balance.toFixed(2);
+    document.getElementById('paymentDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('paymentModal').classList.add('open');
+    document.getElementById('paymentAmount').focus();
+  }
+
+  function closePaymentModal(){
+    paymentBillNo = null;
+    document.getElementById('paymentModal').classList.remove('open');
+  }
+
+  function receivePayment(event){
+    event.preventDefault();
+    const bill = bills.find(item => item.billNo === paymentBillNo);
+    if (!bill) return closePaymentModal();
+    const amount = Number(document.getElementById('paymentAmount').value);
+    const date = document.getElementById('paymentDate').value;
+    if (!Number.isFinite(amount) || amount <= 0 || amount > bill.balance){
+      alert(`Enter an amount between ₹0.01 and ₹${bill.balance.toFixed(2)}.`);
+      return;
+    }
+    if (!date){ alert('Select the payment date.'); return; }
+    if (!Array.isArray(bill.payments)) bill.payments = [];
+    bill.payments.push({ amount, date });
+    bill.advance = bill.payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+    bill.balance = Math.max(0, bill.total - bill.advance);
+    closePaymentModal();
+    renderHistory();
+    renderCustomers();
+    renderHome();
     saveDatabase();
   }
 
@@ -904,7 +1080,10 @@
         <td>
           <span class="status-pill ${statusClass(b)}" style="cursor:pointer;" title="Click to toggle" onclick="togglePaid(${b.billNo})">${statusLabel(b)}</span>
         </td>
-        <td><button class="btn btn-ghost" onclick="openInvoice(bills.find(x=>x.billNo===${b.billNo}))">View / Print</button></td>
+        <td style="display:flex;gap:6px;">
+          ${b.balance > 0 ? `<button class="btn btn-primary" onclick="openPaymentModal(${b.billNo})">Receive payment</button>` : ''}
+          <button class="btn btn-ghost" onclick="openInvoice(bills.find(x=>x.billNo===${b.billNo}))">View / Print</button>
+        </td>
       </tr>
     `).join('') || '<tr><td colspan="7" style="opacity:0.5;">No bills match.</td></tr>';
   }
@@ -916,7 +1095,7 @@
     if (!bill) return;
     const itemRowsHtml = bill.items.map(i => `
       <tr>
-        <td>${i.name}</td>
+        <td>${i.photo ? `<img src="${i.photo}" alt="Product photo" style="width:38px;height:38px;object-fit:cover;vertical-align:middle;margin-right:6px;border-radius:4px;">` : ''}${i.name}</td>
         <td class="mono">${i.qty}</td>
         <td class="mono">₹${i.price.toFixed(2)}</td>
         <td class="mono">₹${(i.qty * i.price).toFixed(2)}</td>
@@ -982,6 +1161,7 @@
         <div class="sum-row"><span>Subtotal</span><span class="mono">₹${bill.subtotal.toFixed(2)}</span></div>
         <div class="sum-row"><span>Tax (${bill.taxRate}%)</span><span class="mono">₹${bill.tax.toFixed(2)}</span></div>
         <div class="sum-row total"><span>Total</span><span class="mono">₹${bill.total.toFixed(2)}</span></div>
+        ${Number(bill.multiplier || 1) !== 1 ? `<div class="sum-row"><span>Total × ${Number(bill.multiplier || 1).toFixed(2)}</span><span class="mono">applied</span></div>` : ''}
         <div class="sum-row"><span>Advance received</span><span class="mono">₹${bill.advance.toFixed(2)}</span></div>
         <div class="sum-row total" style="color:var(--red);"><span>Balance due</span><span class="mono">₹${bill.balance.toFixed(2)}</span></div>
       </div>
@@ -1081,7 +1261,21 @@
         // Use the visible prompt fallback below.
       }
     }
-    window.prompt('Copy this bill summary into WhatsApp:', text);
+    const copyBox = document.createElement('textarea');
+    copyBox.value = text;
+    copyBox.setAttribute('readonly', '');
+    copyBox.style.position = 'fixed';
+    copyBox.style.opacity = '0';
+    document.body.appendChild(copyBox);
+    copyBox.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (error) { copied = false; }
+    copyBox.remove();
+    if (copied){
+      alert('Bill summary copied. Paste it into WhatsApp, email, or another app.');
+    } else {
+      alert('Sharing is unavailable. Please install WhatsApp or another sharing app and try again.');
+    }
   }
 
   function invoiceImageFile(imageData, billNo){

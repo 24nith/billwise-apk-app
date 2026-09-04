@@ -44,8 +44,9 @@ public class NativeSharePlugin extends Plugin {
                 sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 sendIntent.setClipData(ClipData.newRawUri("Invoice image", imageUri));
             } catch (Exception error) {
-                call.reject("Could not prepare the invoice image", error);
-                return;
+                // Share the bill text even when the image cannot be prepared.
+                sendIntent.removeExtra(Intent.EXTRA_STREAM);
+                sendIntent.setType("text/plain");
             }
         } else {
             sendIntent.setType("text/plain");
@@ -56,6 +57,17 @@ public class NativeSharePlugin extends Plugin {
             getActivity().startActivity(Intent.createChooser(sendIntent, title));
             call.resolve();
         } catch (Exception error) {
+            if (!packageName.isEmpty()) {
+                sendIntent.setPackage(null);
+                try {
+                    getActivity().startActivity(Intent.createChooser(sendIntent, title));
+                    call.resolve();
+                    return;
+                } catch (Exception chooserError) {
+                    call.reject("No compatible sharing app is installed", chooserError);
+                    return;
+                }
+            }
             call.reject("No compatible sharing app is installed", error);
         }
     }
